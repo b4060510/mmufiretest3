@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Powder, Foam, EEBD Classifier</title>
+    <style>
+        .center-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            width: 90%;
+            margin: auto;
+        }
+        #webcam-container, #label-container {
+            width: 100%;
+            text-align: center;
+        }
+        .title {
+            width: 100%;
+            text-align: center;
+            margin: 20px 0;
+        }
+        #webcam-container canvas {
+            max-width: 100%;
+            height: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="center-container">
+        <div class="title">Powder, Foam, EEBD Classifier</div>
+        <button type="button" onclick="init()">Start</button>
+        <div id="webcam-container"></div>
+        <div id="label-container"></div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+    <script type="text/javascript">
+        const URL = "./my_model/";
+
+        let model, webcam, labelContainer, maxPredictions;
+
+        async function init() {
+            const modelURL = URL + "model.json";
+            const metadataURL = URL + "metadata.json";
+
+            model = await tmImage.load(modelURL, metadataURL);
+            maxPredictions = model.getTotalClasses();
+
+            const flip = true;
+            const width = 640; 
+            const height = 480;
+
+            // 카메라 권한 요청 추가
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                webcam = new tmImage.Webcam(width, height, flip);
+                await webcam.setup({ facingMode: "environment" });
+                await webcam.play();
+                window.requestAnimationFrame(loop);
+                document.getElementById("webcam-container").appendChild(webcam.canvas);
+            } catch (error) {
+                console.error("카메라 설정 중 문제가 발생했습니다:", error);
+                document.getElementById("label-container").innerText = "카메라 설정에 문제가 발생했습니다. 브라우저 권한을 확인하세요.";
+            }
+
+            labelContainer = document.getElementById("label-container");
+            for (let i = 0; i < maxPredictions; i++) { 
+                labelContainer.appendChild(document.createElement("div"));
+            }
+        }
+
+        async function loop() {
+            webcam.update();
+            await predict();
+            window.requestAnimationFrame(loop);
+        }
+
+        async function predict() {
+            const prediction = await model.predict(webcam.canvas);
+            if (prediction[0].className == "powder" && prediction[0].probability.toFixed(2) >= 0.95) {
+                labelContainer.childNodes[0].innerHTML = "파우더 감지됨: 파우더는 언제나 적재 위치를 확인하고 관리해야 합니다.";
+            } else if (prediction[1].className == "foam" && prediction[1].probability.toFixed(2) >= 0.95) {
+                labelContainer.childNodes[0].innerHTML = "폼 감지됨: 폼 소화기는 정기적으로 점검하여 안전성을 유지하세요.";
+            } else if (prediction[2].className == "EEBD" && prediction[2].probability.toFixed(2) >= 0.95) {
+                labelContainer.childNodes[0].innerHTML = "EEBD 감지됨: 비상 상황에서 항상 사용할 수 있도록 준비하십시오.";
+            } else {
+                labelContainer.childNodes[0].innerHTML = "아무 항목도 감지되지 않았습니다. 올바른 장비를 확인하세요.";
+            }
+        }
+    </script>
+</body>
+</html>
